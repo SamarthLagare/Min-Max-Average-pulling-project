@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. CSS STYLING (IMPRESSIVE UI) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap');
@@ -28,7 +28,7 @@ st.markdown("""
     /* HERO SECTION STYLES */
     .hero-container {
         text-align: center;
-        padding: 2rem 0;
+        padding: 3rem 0; /* Increased padding slightly for balance */
         margin-bottom: 2rem;
     }
     .hero-title {
@@ -38,12 +38,6 @@ st.markdown("""
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.5rem;
-    }
-    .hero-subtitle {
-        font-size: 1.2rem;
-        color: #B0B0B0;
-        max-width: 600px;
-        margin: 0 auto;
     }
 
     /* FEATURE CARDS */
@@ -151,13 +145,10 @@ def go_lab(): st.session_state.page = 'lab'
 
 # ====== HOME PAGE UI ======
 if st.session_state.page == 'home':
-    # Hero Section
+    # Hero Section (Updated: Removed Text)
     st.markdown("""
         <div class="hero-container">
             <h1 class="hero-title">MATRIXFLOW STUDIO</h1>
-            <p class="hero-subtitle">
-                Deconstruct images into raw numbers. Visualize the mathematics behind Computer Vision and Convolutional Neural Networks (CNNs).
-            </p>
         </div>
     """, unsafe_allow_html=True)
 
