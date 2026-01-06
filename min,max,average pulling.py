@@ -50,6 +50,9 @@ st.markdown("""
         border-color: #4b7bff;
         color: #4b7bff;
     }
+    
+    /* Remove default dataframe index if desired (optional) */
+    .dataframe { font-size: 12px !important; }
 
     /* Hide Default Streamlit Elements */
     #MainMenu {visibility: hidden;}
@@ -81,14 +84,15 @@ def manual_pooling(mat, kernel_size, stride, method='max'):
     elif method == 'min':
         return np.min(windows, axis=(2, 3))
     elif method == 'avg':
+        # Return INT for clean display in grid
         return np.mean(windows, axis=(2, 3)).astype(int)
     return mat
 
 def render_heatmap(matrix, title):
     """
-    Renders a heatmap. 
-    Only shows text inside squares if grid is small (<= 32x32).
+    Renders a heatmap with numbers inside cells if the grid is small.
     """
+    # Only show numbers inside cells if grid is <= 32x32
     show_text = True if matrix.shape[0] <= 32 else False
     
     fig = px.imshow(
@@ -99,24 +103,28 @@ def render_heatmap(matrix, title):
         title=f"{title} ({matrix.shape[0]}x{matrix.shape[1]})"
     )
     
+    # Visual Tweaks
     fig.update_layout(
         margin=dict(l=0, r=0, t=40, b=0), 
         height=350,
         font=dict(color="white")
     )
     fig.update_coloraxes(showscale=False)
-    fig.update_traces(textfont_size=12)
+    
+    # If showing text, force integer formatting (no decimals)
+    if show_text:
+        fig.update_traces(texttemplate="%{z:.0f}", textfont_size=14)
     
     st.plotly_chart(fig, use_container_width=True)
 
 def render_numbered_grid(matrix, label):
     """
-    Renders the dataframe/numbered grid below the heatmap.
+    Renders the data numbers in a grid format below the heatmap.
     """
-    st.markdown(f"**{label} Values**")
+    st.markdown(f"**{label} Data Grid**")
     
     if matrix.shape[0] > 20:
-        st.warning(f"Grid too large ({matrix.shape[0]}x{matrix.shape[1]}). Showing top-left 10x10.")
+        st.warning(f"Grid too large to show all numbers. Showing top-left 10x10.")
         st.dataframe(matrix[:10, :10], use_container_width=True, height=200)
         
         # Download Button
@@ -130,8 +138,8 @@ def render_numbered_grid(matrix, label):
             key=f"dl_{label}"
         )
     else:
-        # For 16x16, show the whole thing
-        st.dataframe(matrix, use_container_width=True, height=400)
+        # Show full dataframe for 16x16
+        st.dataframe(matrix, use_container_width=True)
 
 # --- 4. NAVIGATION ---
 if 'page' not in st.session_state: st.session_state.page = 'home'
@@ -194,19 +202,25 @@ elif st.session_state.page == 'lab':
         st.markdown("---")
         st.markdown(f"### 2. Base Matrix ({grid_size}x{grid_size})")
         
-        col_orig, col_mat = st.columns([1, 2])
+        col_orig, col_data = st.columns([1, 2])
         
         with col_orig:
-            st.image(img_rgb, caption="Original RGB", use_container_width=True)
+            # SHOW ORIGINAL RGB ONLY (No B&W Image)
+            st.image(img_rgb, caption="Original Input (RGB)", use_container_width=True)
         
-        with col_mat:
+        with col_data:
+            # SHOW DATA INSTEAD OF B&W IMAGE
+            st.markdown(f"**Compressed Matrix Data** ({grid_size}x{grid_size})")
             if grid_size == 16:
-                render_heatmap(compressed_matrix, "Compressed Input")
+                st.dataframe(compressed_matrix, use_container_width=True, height=300)
             else:
-                st.image(compressed_matrix, caption=f"Compressed Single Matrix ({grid_size}x{grid_size})", width=300)
+                st.info(f"Matrix Size: {grid_size}x{grid_size} (65,536 pixels)")
+                st.warning("Previewing top-left 10x10 due to size.")
+                st.dataframe(compressed_matrix[:10, :10], use_container_width=True)
+                
                 s_base = io.BytesIO()
                 np.savetxt(s_base, compressed_matrix, fmt='%d', delimiter=",")
-                st.download_button("Download Base Matrix CSV", s_base.getvalue(), "base_matrix.csv", "text/csv")
+                st.download_button("Download Full Matrix CSV", s_base.getvalue(), "base_matrix.csv", "text/csv")
 
         # 4. POOLING OPERATIONS
         st.markdown("---")
@@ -234,7 +248,7 @@ elif st.session_state.page == 'lab':
                 st.markdown("#### Max Pooling")
                 st.caption("High features (Edges)")
                 render_heatmap(pool_max, "Max Result")
-                st.divider() 
+                st.divider()
                 render_numbered_grid(pool_max, "Max")
 
             with p2:
