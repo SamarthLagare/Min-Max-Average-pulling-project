@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 from numpy.lib.stride_tricks import as_strided
 import plotly.express as px
+import io
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
@@ -13,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. CSS STYLING (The "Clear View" Theme) ---
+# --- 2. CSS STYLING (Dark "Studio" Theme) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
@@ -70,7 +71,7 @@ def manual_pooling(mat, kernel_size, stride, method='max'):
     out_w = (w - k) // s + 1
 
     if out_h <= 0 or out_w <= 0:
-        return np.zeros((1,1)) # Return empty if kernel > image
+        return None # Kernel larger than image
 
     # Create sliding windows view (4D array)
     itemsize = mat.itemsize
@@ -99,6 +100,25 @@ def render_heatmap(matrix, title):
     fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=300)
     fig.update_coloraxes(showscale=False)
     st.plotly_chart(fig, use_container_width=True)
+
+def show_matrix_data(matrix, label):
+    """Displays data table or download button depending on size."""
+    with st.expander(f"View Data: {label}", expanded=False):
+        if matrix.shape[0] > 20:
+            st.warning("⚠️ Matrix is too large to display fully. Showing top-left 10x10 corner.")
+            st.dataframe(matrix[:10, :10])
+            
+            # Create download buffer
+            s = io.BytesIO()
+            np.savetxt(s, matrix, fmt='%d', delimiter=",")
+            st.download_button(
+                f"Download Full {label} CSV", 
+                s.getvalue(), 
+                f"{label}.csv", 
+                "text/csv"
+            )
+        else:
+            st.dataframe(matrix)
 
 # --- 4. NAVIGATION ---
 if 'page' not in st.session_state: st.session_state.page = 'home'
@@ -149,16 +169,14 @@ elif st.session_state.page == 'lab':
     
     if uploaded_file:
         # 2. PRE-PROCESSING
-        # Read file buffer -> OpenCV
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         img_bgr = cv2.imdecode(file_bytes, 1)
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         
-        # Convert to Single Matrix (Grayscale) as requested
+        # Convert to Single Matrix (Grayscale)
         img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
         
         # Compress (Resize)
-        # We use INTER_AREA for better quality when shrinking images
         compressed_matrix = cv2.resize(img_gray, (grid_size, grid_size), interpolation=cv2.INTER_AREA)
 
         # 3. VISUALIZATION OF BASE MATRIX
@@ -171,13 +189,16 @@ elif st.session_state.page == 'lab':
             st.image(img_rgb, caption="Original RGB", use_container_width=True)
         
         with col_mat:
-            # If 16x16, show Dataframe for clarity
             if grid_size == 16:
                 t1, t2 = st.tabs(["Visual", "Data"])
                 with t1: render_heatmap(compressed_matrix, "Compressed Input")
                 with t2: st.dataframe(compressed_matrix, height=300)
             else:
                 st.image(compressed_matrix, caption=f"Compressed Single Matrix ({grid_size}x{grid_size})", width=300)
+                # Option to download base matrix if it's large
+                s_base = io.BytesIO()
+                np.savetxt(s_base, compressed_matrix, fmt='%d', delimiter=",")
+                st.download_button("Download Base Matrix CSV", s_base.getvalue(), "base_matrix.csv", "text/csv")
 
         # 4. POOLING OPERATIONS
         st.markdown("---")
@@ -198,26 +219,31 @@ elif st.session_state.page == 'lab':
         if pool_max is None:
             st.error("Kernel size is larger than the image grid! Reduce Kernel Size.")
         else:
-            # Display Results
+            # --- DISPLAY VISUALS ---
             p1, p2, p3 = st.columns(3)
             
             with p1:
                 st.markdown("#### Max Pooling")
-                st.caption("Captures most prominent features (edges/textures)")
+                st.caption("High features (Edges)")
                 render_heatmap(pool_max, "Max Result")
-                st.write(f"Shape: {pool_max.shape}")
 
             with p2:
                 st.markdown("#### Min Pooling")
-                st.caption("Captures darkest areas/background")
+                st.caption("Low features (Darkness)")
                 render_heatmap(pool_min, "Min Result")
-                st.write(f"Shape: {pool_min.shape}")
 
             with p3:
                 st.markdown("#### Avg Pooling")
-                st.caption("Smooths the image")
+                st.caption("Average features (Smooth)")
                 render_heatmap(pool_avg, "Avg Result")
-                st.write(f"Shape: {pool_avg.shape}")
+
+            # --- DISPLAY DATA VALUES ---
+            st.markdown("#### 🔢 Matrix Data Values")
+            
+            d1, d2, d3 = st.columns(3)
+            with d1: show_matrix_data(pool_max, "Max_Pool")
+            with d2: show_matrix_data(pool_min, "Min_Pool")
+            with d3: show_matrix_data(pool_avg, "Avg_Pool")
 
             # Formula Explanation
             with st.expander("ℹ️ How calculations work"):
