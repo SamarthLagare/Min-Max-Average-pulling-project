@@ -8,7 +8,7 @@ import io
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="MatrixFlow Studio v2.0",
+    page_title="MatrixFlow Studio v2.2",
     page_icon="💠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -74,7 +74,7 @@ def manual_pooling(mat, kernel_size, stride, method='max'):
 
 def render_heatmap(matrix, title):
     """Renders the visual heatmap (Grayscale)."""
-    # Show numbers inside the squares ONLY if the grid is small (16x16 or similar)
+    # Show numbers inside the squares ONLY if the grid is small (32x32 or smaller)
     show_text = True if matrix.shape[0] <= 32 else False
     
     fig = px.imshow(
@@ -110,29 +110,44 @@ def render_data_grid(matrix, label):
         np.savetxt(s, matrix, fmt='%d', delimiter=",")
         st.download_button(f"Download {label} CSV", s.getvalue(), f"{label}.csv", "text/csv", key=f"dl_{label}")
     else:
-        # Full grid for 16x16
+        # Full grid for small sizes
         st.dataframe(matrix, use_container_width=True)
 
-# --- 4. NAVIGATION ---
-if 'page' not in st.session_state: st.session_state.page = 'home'
+# --- 4. NAVIGATION LOGIC ---
+if 'page' not in st.session_state:
+    st.session_state.page = 'home'
+
+def update_page_from_sidebar():
+    """Callback to sync sidebar selection with session state"""
+    selection = st.session_state.nav_selection
+    if selection == "Home":
+        st.session_state.page = 'home'
+    else:
+        st.session_state.page = 'lab'
 
 with st.sidebar:
     st.title("Navigation")
-    st.caption("v2.0 Updated Build") # LOOK FOR THIS TO CONFIRM UPDATE
+    st.caption("v2.2 Extended Grids") 
     
-    page = st.radio("Go to:", ["Home", "Matrix Lab"], label_visibility="collapsed")
+    current_index = 0 if st.session_state.page == 'home' else 1
     
-    if page == "Home": st.session_state.page = 'home'
-    else: st.session_state.page = 'lab'
+    st.radio(
+        "Go to:", 
+        ["Home", "Matrix Lab"], 
+        index=current_index,
+        key="nav_selection",
+        on_change=update_page_from_sidebar,
+        label_visibility="collapsed"
+    )
     
     st.markdown("---")
     st.info("**MatrixFlow Studio**\n\nCNN Feature Extraction Workbench.")
 
-# --- 5. PAGE LOGIC ---
+# --- 5. PAGE CONTENT ---
 
 # === HOME ===
 if st.session_state.page == 'home':
-    st.title("MATRIXFLOW STUDIO v2.0")
+    st.title("MATRIXFLOW STUDIO v2.2")
     st.markdown("### Feature Extraction & Pooling Workbench")
     st.markdown("---")
     
@@ -160,7 +175,13 @@ elif st.session_state.page == 'lab':
             uploaded_file = st.file_uploader("Upload Image", type=['jpg', 'png', 'jpeg'])
         with c_set:
             st.write("**Compression Target**")
-            grid_size = st.selectbox("Grid Size", [16, 256], format_func=lambda x: f"{x} x {x} Matrix")
+            # --- NEW GRID SIZES ADDED HERE ---
+            grid_size = st.selectbox(
+                "Grid Size", 
+                [8, 16, 32, 64, 128, 256], 
+                index=1, # Defaults to 16
+                format_func=lambda x: f"{x} x {x} Matrix"
+            )
     
     if uploaded_file:
         # 2. PROCESS
@@ -180,7 +201,6 @@ elif st.session_state.page == 'lab':
         
         with c_visual:
             st.image(img_rgb, caption="Original Input (RGB)", use_container_width=True)
-            # NOTE: No grayscale heatmap here, as requested.
         
         with c_data:
             # PURE DATA GRID
@@ -223,12 +243,8 @@ elif st.session_state.page == 'lab':
                 st.caption("Smooths Features")
                 render_heatmap(pool_avg, "Avg Result")
                 render_data_grid(pool_avg, "Avg Data")
-
-            # Formula
-            st.markdown("---")
-            with st.expander("ℹ️ Calculation Details"):
-                st.latex(r''' Output_{size} = \lfloor \frac{Input - Kernel}{Stride} \rfloor + 1 ''')
-                st.write(f"({grid_size} - {k_size}) / {stride} + 1 = **{pool_max.shape[0]}x{pool_max.shape[0]}**")
+            
+            # (Calculation explanation removed per request)
 
     else:
         st.info("Please upload an image to begin.")
