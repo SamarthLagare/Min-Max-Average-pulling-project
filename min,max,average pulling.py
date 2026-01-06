@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. CSS STYLING (Dark "Studio" Theme) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
@@ -59,56 +59,65 @@ st.markdown("""
 
 # --- 3. NUMPY POOLING ENGINE ---
 def manual_pooling(mat, kernel_size, stride, method='max'):
-    """
-    Applies sliding window pooling efficiently using NumPy strides.
-    """
+    """Applies sliding window pooling efficiently."""
     h, w = mat.shape
     k = kernel_size
     s = stride
 
-    # Calculate output dimensions
     out_h = (h - k) // s + 1
     out_w = (w - k) // s + 1
 
     if out_h <= 0 or out_w <= 0:
-        return None # Kernel larger than image
+        return None 
 
-    # Create sliding windows view (4D array)
     itemsize = mat.itemsize
     output_shape = (out_h, out_w, k, k)
     strides = (s * w * itemsize, s * itemsize, w * itemsize, itemsize)
     
     windows = as_strided(mat, shape=output_shape, strides=strides)
 
-    # Apply the mathematical operation
     if method == 'max':
         return np.max(windows, axis=(2, 3))
     elif method == 'min':
         return np.min(windows, axis=(2, 3))
     elif method == 'avg':
-        return np.mean(windows, axis=(2, 3))
+        return np.mean(windows, axis=(2, 3)).astype(int) # Cast to int for cleaner display
     return mat
 
 def render_heatmap(matrix, title):
-    """Uses Plotly to render a nice heatmap for the matrix."""
+    """
+    Renders a heatmap. 
+    If the matrix is small (<= 32x32), it displays the values inside the cells.
+    """
+    # Only show text if grid is small enough to be readable
+    show_text = True if matrix.shape[0] <= 32 else False
+    
     fig = px.imshow(
         matrix, 
         color_continuous_scale='gray', 
         zmin=0, zmax=255,
+        text_auto=show_text,  # <--- THIS ENABLES VALUES IN GRID
         title=f"{title} ({matrix.shape[0]}x{matrix.shape[1]})"
     )
-    fig.update_layout(margin=dict(l=0, r=0, t=30, b=0), height=300)
+    
+    # Layout adjustments for readability
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=40, b=0), 
+        height=400,
+        font=dict(color="white")
+    )
     fig.update_coloraxes(showscale=False)
+    fig.update_traces(textfont_size=12) # Adjust font size of numbers
+    
     st.plotly_chart(fig, use_container_width=True)
 
 def show_matrix_data(matrix, label):
     """Displays data table or download button depending on size."""
-    with st.expander(f"View Data: {label}", expanded=False):
+    with st.expander(f"View Data Table: {label}", expanded=False):
         if matrix.shape[0] > 20:
             st.warning("⚠️ Matrix is too large to display fully. Showing top-left 10x10 corner.")
             st.dataframe(matrix[:10, :10])
             
-            # Create download buffer
             s = io.BytesIO()
             np.savetxt(s, matrix, fmt='%d', delimiter=",")
             st.download_button(
@@ -172,8 +181,6 @@ elif st.session_state.page == 'lab':
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         img_bgr = cv2.imdecode(file_bytes, 1)
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        
-        # Convert to Single Matrix (Grayscale)
         img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
         
         # Compress (Resize)
@@ -190,12 +197,9 @@ elif st.session_state.page == 'lab':
         
         with col_mat:
             if grid_size == 16:
-                t1, t2 = st.tabs(["Visual", "Data"])
-                with t1: render_heatmap(compressed_matrix, "Compressed Input")
-                with t2: st.dataframe(compressed_matrix, height=300)
+                render_heatmap(compressed_matrix, "Compressed Input")
             else:
                 st.image(compressed_matrix, caption=f"Compressed Single Matrix ({grid_size}x{grid_size})", width=300)
-                # Option to download base matrix if it's large
                 s_base = io.BytesIO()
                 np.savetxt(s_base, compressed_matrix, fmt='%d', delimiter=",")
                 st.download_button("Download Base Matrix CSV", s_base.getvalue(), "base_matrix.csv", "text/csv")
@@ -237,8 +241,8 @@ elif st.session_state.page == 'lab':
                 st.caption("Average features (Smooth)")
                 render_heatmap(pool_avg, "Avg Result")
 
-            # --- DISPLAY DATA VALUES ---
-            st.markdown("#### 🔢 Matrix Data Values")
+            # --- DISPLAY DATA TABLES ---
+            st.markdown("#### 🔢 Matrix Data Tables")
             
             d1, d2, d3 = st.columns(3)
             with d1: show_matrix_data(pool_max, "Max_Pool")
