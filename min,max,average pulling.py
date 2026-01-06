@@ -81,53 +81,57 @@ def manual_pooling(mat, kernel_size, stride, method='max'):
     elif method == 'min':
         return np.min(windows, axis=(2, 3))
     elif method == 'avg':
-        return np.mean(windows, axis=(2, 3)).astype(int) # Cast to int for cleaner display
+        return np.mean(windows, axis=(2, 3)).astype(int)
     return mat
 
 def render_heatmap(matrix, title):
     """
     Renders a heatmap. 
-    If the matrix is small (<= 32x32), it displays the values inside the cells.
+    Only shows text inside squares if grid is small (<= 32x32).
     """
-    # Only show text if grid is small enough to be readable
     show_text = True if matrix.shape[0] <= 32 else False
     
     fig = px.imshow(
         matrix, 
         color_continuous_scale='gray', 
         zmin=0, zmax=255,
-        text_auto=show_text,  # <--- THIS ENABLES VALUES IN GRID
+        text_auto=show_text,
         title=f"{title} ({matrix.shape[0]}x{matrix.shape[1]})"
     )
     
-    # Layout adjustments for readability
     fig.update_layout(
         margin=dict(l=0, r=0, t=40, b=0), 
-        height=400,
+        height=350,
         font=dict(color="white")
     )
     fig.update_coloraxes(showscale=False)
-    fig.update_traces(textfont_size=12) # Adjust font size of numbers
+    fig.update_traces(textfont_size=12)
     
     st.plotly_chart(fig, use_container_width=True)
 
-def show_matrix_data(matrix, label):
-    """Displays data table or download button depending on size."""
-    with st.expander(f"View Data Table: {label}", expanded=False):
-        if matrix.shape[0] > 20:
-            st.warning("⚠️ Matrix is too large to display fully. Showing top-left 10x10 corner.")
-            st.dataframe(matrix[:10, :10])
-            
-            s = io.BytesIO()
-            np.savetxt(s, matrix, fmt='%d', delimiter=",")
-            st.download_button(
-                f"Download Full {label} CSV", 
-                s.getvalue(), 
-                f"{label}.csv", 
-                "text/csv"
-            )
-        else:
-            st.dataframe(matrix)
+def render_numbered_grid(matrix, label):
+    """
+    Renders the dataframe/numbered grid below the heatmap.
+    """
+    st.markdown(f"**{label} Values**")
+    
+    if matrix.shape[0] > 20:
+        st.warning(f"Grid too large ({matrix.shape[0]}x{matrix.shape[1]}). Showing top-left 10x10.")
+        st.dataframe(matrix[:10, :10], use_container_width=True, height=200)
+        
+        # Download Button
+        s = io.BytesIO()
+        np.savetxt(s, matrix, fmt='%d', delimiter=",")
+        st.download_button(
+            f"⬇ CSV", 
+            s.getvalue(), 
+            f"{label}.csv", 
+            "text/csv",
+            key=f"dl_{label}"
+        )
+    else:
+        # For 16x16, show the whole thing
+        st.dataframe(matrix, use_container_width=True, height=400)
 
 # --- 4. NAVIGATION ---
 if 'page' not in st.session_state: st.session_state.page = 'home'
@@ -223,33 +227,32 @@ elif st.session_state.page == 'lab':
         if pool_max is None:
             st.error("Kernel size is larger than the image grid! Reduce Kernel Size.")
         else:
-            # --- DISPLAY VISUALS ---
+            # --- DISPLAY VISUALS & GRIDS VERTICALLY ---
             p1, p2, p3 = st.columns(3)
             
             with p1:
                 st.markdown("#### Max Pooling")
                 st.caption("High features (Edges)")
                 render_heatmap(pool_max, "Max Result")
+                st.divider() 
+                render_numbered_grid(pool_max, "Max")
 
             with p2:
                 st.markdown("#### Min Pooling")
                 st.caption("Low features (Darkness)")
                 render_heatmap(pool_min, "Min Result")
+                st.divider()
+                render_numbered_grid(pool_min, "Min")
 
             with p3:
                 st.markdown("#### Avg Pooling")
                 st.caption("Average features (Smooth)")
                 render_heatmap(pool_avg, "Avg Result")
-
-            # --- DISPLAY DATA TABLES ---
-            st.markdown("#### 🔢 Matrix Data Tables")
-            
-            d1, d2, d3 = st.columns(3)
-            with d1: show_matrix_data(pool_max, "Max_Pool")
-            with d2: show_matrix_data(pool_min, "Min_Pool")
-            with d3: show_matrix_data(pool_avg, "Avg_Pool")
+                st.divider()
+                render_numbered_grid(pool_avg, "Avg")
 
             # Formula Explanation
+            st.markdown("---")
             with st.expander("ℹ️ How calculations work"):
                 st.latex(r''' Output_{size} = \lfloor \frac{Input - Kernel}{Stride} \rfloor + 1 ''')
                 st.write(f"Input: {grid_size}, Kernel: {k_size}, Stride: {stride}")
