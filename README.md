@@ -1,7 +1,3 @@
-Here is a comprehensive GitHub README draft for **MatrixFlow Studio**, tailored to the features and "under-the-hood" visualization shown in your latest video.
-
----
-
 # 🧠 MatrixFlow Studio
 
 **Deconstruct images into raw numbers. Visualize the mathematics behind Computer Vision and Convolutional Neural Networks (CNNs).**
@@ -52,8 +48,6 @@ Experiment with the core operations of CNNs using a real-time "Pooling Engine."
 * **Backend:** Python
 
 ---
-
-## 📸 Screenshots
 
 | Base Matrix Analysis | Pooling Operations |
 | --- | --- |
